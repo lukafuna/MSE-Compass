@@ -48,7 +48,7 @@ function CompanyChat({ companyId, companyName }: CompanyChatProps) {
 
   return (
     <div className="card rounded-0 p-4">
-      <h6 className="text-muted small mb-3">Ask Gemini about {companyName}</h6>
+      <h6 className="text-dark small mb-3">Ask <span className="text-primary">Gemini</span> about {companyName} </h6>
 
       <div className="gemini-chat-body mb-3" ref={bodyRef}>
         {messages.map((m, i) => (

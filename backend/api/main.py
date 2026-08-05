@@ -376,15 +376,20 @@ def _stream_gemini_reply(system_prompt: str, contents: list[dict]):
             stream=True,
         ) as resp:
             resp.raise_for_status()
-            for line in resp.iter_lines(decode_unicode=True):
-                if not line or not line.startswith("data: "):
-                    continue
-                chunk = json.loads(line[len("data: "):])
-                try:
-                    text = chunk["candidates"][0]["content"]["parts"][0]["text"]
-                except (KeyError, IndexError):
-                    continue
-                yield text
+            buffer = b""
+            for raw_chunk in resp.iter_content(chunk_size=None):
+                buffer += raw_chunk
+                while b"\n" in buffer:
+                    line_bytes, buffer = buffer.split(b"\n", 1)
+                    line = line_bytes.decode("utf-8").rstrip("\r")
+                    if not line or not line.startswith("data: "):
+                        continue
+                    chunk = json.loads(line[len("data: "):])
+                    try:
+                        text = chunk["candidates"][0]["content"]["parts"][0]["text"]
+                    except (KeyError, IndexError):
+                        continue
+                    yield text
     except Exception:
         log.exception("Gemini chat request failed")
         yield "Sorry, I couldn't reach Gemini just now. Please try again."
