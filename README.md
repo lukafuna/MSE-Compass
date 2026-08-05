@@ -91,7 +91,7 @@ Vite will tell you what port it landed on (usually `5173`, sometimes not if
 that's already taken — either is fine, the backend accepts any localhost
 port during local dev).
 
-## The environment variables
+## Environment variables
 
 The two you'll actually
 want to go get:
@@ -103,7 +103,7 @@ want to go get:
 Everything else (DB connection, SMTP for the contact form) is optional or
 has defaults for local dev.
 
-## Keeping it fresh
+## Scheduled Jobs
 
 `backend/scheduler.py` is a long-running process that scrapes and
 recomputes on a schedule by itself, so you don't have to run those four
