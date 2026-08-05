@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+.idea/
+venv/
+.venv/
+node_modules/
+backend/scraper/downloads/
+*.log
+frontend/dist/
+debug_out.csv

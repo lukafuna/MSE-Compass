@@ -1,0 +1,11 @@
+<svg width="220" height="220" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M110 182.6C150.096 182.6 182.6 150.096 182.6 110C182.6 69.9041 150.096 37.4 110 37.4C69.9041 37.4 37.4 69.9041 37.4 110C37.4 150.096 69.9041 182.6 110 182.6Z" stroke="white" stroke-opacity="0.04" stroke-width="8.8"/>
+<path d="M110 173.8C145.236 173.8 173.8 145.236 173.8 110C173.8 74.7642 145.236 46.2 110 46.2C74.7642 46.2 46.2 74.7642 46.2 110C46.2 145.236 74.7642 173.8 110 173.8Z" stroke="white" stroke-opacity="0.15" stroke-width="1.65"/>
+<path d="M110 48.4V58.3" stroke="white" stroke-opacity="0.5" stroke-width="2.2" stroke-linecap="round"/>
+<path d="M171.6 110H161.7" stroke="white" stroke-opacity="0.5" stroke-width="2.2" stroke-linecap="round"/>
+<path d="M110 171.6V161.7" stroke="white" stroke-opacity="0.18" stroke-width="1.65" stroke-linecap="round"/>
+<path d="M48.4 110H58.3" stroke="white" stroke-opacity="0.18" stroke-width="1.65" stroke-linecap="round"/>
+<path opacity="0.9" d="M159.5 60.5L100.1 110H119.9L159.5 60.5Z" fill="#34D399"/>
+<path opacity="0.85" d="M60.5 159.5L100.1 110H119.9L60.5 159.5Z" fill="#FB7185"/>
+<path d="M110 115.5C113.038 115.5 115.5 113.038 115.5 110C115.5 106.962 113.038 104.5 110 104.5C106.962 104.5 104.5 106.962 104.5 110C104.5 113.038 106.962 115.5 110 115.5Z" fill="#1E293B" stroke="white" stroke-opacity="0.25" stroke-width="1.65"/>
+</svg>

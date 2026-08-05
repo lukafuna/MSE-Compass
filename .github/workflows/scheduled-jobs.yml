@@ -1,0 +1,50 @@
+name: Scheduled data jobs
+
+on:
+  schedule:
+    # Weekdays ~08:05 local (CET/CEST) -- stocks, stock index, news. Exact
+    # minute drifts with daylight saving since cron here is UTC-fixed; the
+    # jobs self-heal via their lookback windows so this doesn't matter.
+    - cron: "5 7 * * 1-5"
+    # 1st of the month ~18:30 local -- bonds, bond index.
+    - cron: "30 17 1 * *"
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Job to run"
+        type: choice
+        options: [daily, bonds]
+        default: daily
+
+jobs:
+  run-job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - name: Determine job
+        id: job
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.job }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "30 17 1 * *" ]; then
+            echo "name=bonds" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=daily" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run job
+        run: python -m backend.run_scheduled_job --job ${{ steps.job.outputs.name }}
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
