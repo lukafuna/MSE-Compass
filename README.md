@@ -48,16 +48,10 @@ connection, and optionally a couple of API keys (see below).
 Point Postgres at the schema files once:
 
 ```powershell
+psql -f backend/database/schema.sql
 psql -f backend/database/news_schema.sql
 psql -f backend/database/contact_schema.sql
 ```
-
-> **Heads up:** `backend/database/schema.sql` — the one that's supposed to
-> create `companies`, `company_ohlcv`, `company_analysis`, and `mse_indexes`
-> — is currently empty. Those tables exist in the live database some other
-> way, but a from-scratch setup won't have them until that file gets its
-> `CREATE TABLE` statements back. Worth fixing before anyone else tries to
-> set this up.
 
 **2. Get some data into it**
 

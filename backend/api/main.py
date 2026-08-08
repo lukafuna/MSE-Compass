@@ -2,7 +2,9 @@ import json
 import logging
 import os
 import smtplib
+import time
 from email.message import EmailMessage
+from functools import wraps
 
 import requests
 from fastapi import FastAPI, HTTPException
@@ -13,6 +15,35 @@ from pydantic import BaseModel
 from backend.database.db import get_connection
 
 log = logging.getLogger(__name__)
+
+CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", 3600))
+
+
+def ttl_cache(seconds: int = CACHE_TTL_SECONDS):
+    """Tiny in-process cache for read endpoints backed by data that only
+    changes once (or twice) a day via the scrape job. Keyed on the
+    endpoint's own arguments, so /companies/5/series and /companies/6/series
+    get separate entries. Not shared across processes/instances -- fine here
+    since the API runs as a single instance and staleness of up to `seconds`
+    after a scrape is acceptable."""
+
+    def decorator(fn):
+        store: dict[tuple, tuple[float, object]] = {}
+
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            key = (args, tuple(sorted(kwargs.items())))
+            now = time.monotonic()
+            cached = store.get(key)
+            if cached and now < cached[0]:
+                return cached[1]
+            value = fn(*args, **kwargs)
+            store[key] = (now + seconds, value)
+            return value
+
+        return wrapper
+
+    return decorator
 
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 
@@ -91,6 +122,7 @@ def send_contact_message(payload: ContactRequest):
 
 
 @app.get("/companies")
+@ttl_cache()
 def list_companies():
     conn = get_connection()
     try:
@@ -101,6 +133,7 @@ def list_companies():
         conn.close()
 
 @app.get("/companies/{company_id}/series")
+@ttl_cache()
 def company_series(company_id: int, since: date | None = None):
     conn = get_connection()
     try:
@@ -126,6 +159,7 @@ def company_series(company_id: int, since: date | None = None):
         conn.close()
 
 @app.get("/screener")
+@ttl_cache()
 def screener():
     conn = get_connection()
     try:
@@ -149,6 +183,7 @@ def screener():
 
 
 @app.get("/bonds")
+@ttl_cache()
 def bonds():
     """MSE bonds essentially never trade on-exchange (volume is 0 on every
     recorded row) and most never get a fresh quote either -- so the
@@ -185,6 +220,7 @@ def bonds():
 
 
 @app.get("/news")
+@ttl_cache()
 def news(region: str = "mse", limit: int = 30):
     if region not in ("mse", "global"):
         raise HTTPException(400, "region must be 'mse' or 'global'")
@@ -205,6 +241,7 @@ def news(region: str = "mse", limit: int = 30):
 
 
 @app.get("/indexes")
+@ttl_cache()
 def indexes():
     conn = get_connection()
     try:
@@ -224,6 +261,7 @@ def indexes():
 
 
 @app.get("/indexes/{index_code}/series")
+@ttl_cache()
 def index_series(index_code: str, since: date | None = None):
     conn = get_connection()
     try:
