@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getNews, type NewsArticle } from "../api/client";
 import Pagination from "../components/Pagination";
+import Skeleton from "../components/Skeleton";
 
 type Region = "mse" | "global";
 
@@ -45,6 +46,43 @@ function FeaturedStory({ article, badgeLabel }: { article: NewsArticle; badgeLab
             </p>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function FeaturedStorySkeleton() {
+  return (
+    <div className="card news-featured-card position-relative mb-4 rounded-0">
+      <div className="row g-0">
+        <div className="col-md-5 news-featured-media">
+          <Skeleton className="w-100 h-100" style={{ borderRadius: 0 }} />
+        </div>
+        <div className="col-md-7">
+          <div className="p-4 d-flex flex-column h-100">
+            <Skeleton className="mb-3" style={{ width: "4.5rem", height: "1.35rem" }} />
+            <Skeleton className="d-block mb-2" style={{ width: "90%", height: "1.5rem" }} />
+            <Skeleton className="d-block mb-3" style={{ width: "60%", height: "1.5rem" }} />
+            <Skeleton className="d-block mb-1" style={{ width: "100%", height: "0.9rem" }} />
+            <Skeleton className="d-block mb-2" style={{ width: "80%", height: "0.9rem" }} />
+            <Skeleton className="mt-auto" style={{ width: "8rem", height: "0.7rem" }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NewsGridCardSkeleton() {
+  return (
+    <div className="card news-grid-card h-100 position-relative rounded-0">
+      <div className="news-grid-media">
+        <Skeleton className="w-100 h-100" style={{ borderRadius: 0 }} />
+      </div>
+      <div className="card-body d-flex flex-column p-3">
+        <Skeleton className="d-block mb-1" style={{ width: "100%", height: "0.85rem" }} />
+        <Skeleton className="d-block mb-2" style={{ width: "70%", height: "0.85rem" }} />
+        <Skeleton className="mt-auto" style={{ width: "6rem", height: "0.65rem" }} />
       </div>
     </div>
   );
@@ -135,13 +173,16 @@ function NewsPage() {
 
           <div className="news-feed-panel rounded-0">
             {loading && (
-              <div className="row g-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div className="col-md-4" key={i}>
-                    <div className="card news-card-skeleton skeleton h-100 " />
-                  </div>
-                ))}
-              </div>
+              <>
+                <FeaturedStorySkeleton />
+                <div className="row row-cols-1 row-cols-md-3 g-3">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div className="col" key={i}>
+                      <NewsGridCardSkeleton />
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
             {!loading && error && <div className="alert alert-danger d-inline-block mb-0">{error}</div>}
             {!loading && !error && articles.length === 0 && (
