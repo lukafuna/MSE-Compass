@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { getCompanies, getNews, type Company, type NewsArticle } from "../api/client";
+import Skeleton from "../components/Skeleton";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -49,7 +50,30 @@ function SearchResultsPage() {
             {query ? `Showing results for "${query}"` : "Enter a search term."}
           </p>
 
-          {loading && <p>Loading...</p>}
+          {loading && (
+            <>
+              <div className="mb-4">
+                <h5 className="mb-3">Companies</h5>
+                <div className="list-group" style={{ maxWidth: "480px" }}>
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="list-group-item">
+                      <Skeleton style={{ width: `${60 - i * 10}%`, height: "0.9rem" }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h5 className="mb-3">News</h5>
+                <div className="row g-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div className="col-lg-3 col-md-4 col-sm-6" key={i}>
+                      <div className="card news-card-skeleton skeleton h-100" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
           {!loading && error && <p className="text-danger">{error}</p>}
           {!loading && !error && !hasResults && query && (
             <p className="text-muted">No results for "{query}".</p>

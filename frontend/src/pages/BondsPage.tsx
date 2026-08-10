@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getBonds, type BondRow } from "../api/client";
+import SkeletonTable from "../components/SkeletonTable";
 
 const PAR_VALUE = 100;
 
@@ -31,7 +32,26 @@ function BondsPage() {
       .finally(() => setLoading(false));
   }, []); // empty array = run once, when the page first loads
 
-  if (loading) return <p className="container mt-4">Loading...</p>;
+  if (loading) {
+    return (
+      <div className="w-100 flex-grow-1 d-flex flex-column">
+        <div className="bg-body-secondary py-4 w-100 flex-grow-1">
+          <div className="container">
+            <h2 className="mb-3">MSE Bonds</h2>
+            <input
+              type="text"
+              className="form-control mb-3"
+              placeholder="Search by bond name..."
+              disabled
+            />
+            <div className="results-area">
+              <SkeletonTable columns={4} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Filter by name (case-insensitive), matches typed anywhere in the name
   const filtered = search.trim()

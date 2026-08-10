@@ -9,6 +9,7 @@ import {
   type IndexSeriesPoint,
 } from "../api/client";
 import IndexChart from "../components/IndexChart";
+import Skeleton from "../components/Skeleton";
 
 const INDEX_CODES = ["MBI10", "OMB"];
 
@@ -65,7 +66,79 @@ function HomePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p className="container-fluid px-4 mt-4">Loading...</p>;
+  if (loading) {
+    return (
+      <div className="w-100 flex-grow-1 d-flex flex-column bg-body-secondary">
+        <div className="w-100 py-5">
+          <div className="container-fluid px-4">
+            <div className="row align-items-center mb-5 ms-5">
+              <div className="col-lg-6 mb-4 mb-lg-0">
+                <h1 className="mb-4">
+                  <Skeleton className="d-block mb-2" style={{ width: "90%", height: "2.5rem" }} />
+                  <Skeleton className="d-block" style={{ width: "60%", height: "2.5rem" }} />
+                </h1>
+                <div className="mb-5" style={{ maxWidth: "560px" }}>
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="d-block mb-2" style={{ width: i === 3 ? "70%" : "100%", height: "0.9rem" }} />
+                  ))}
+                </div>
+                <div className="d-flex gap-3">
+                  <Skeleton style={{ width: "9rem", height: "2.8rem", borderRadius: "4px" }} />
+                  <Skeleton style={{ width: "9rem", height: "2.8rem", borderRadius: "4px" }} />
+                </div>
+              </div>
+              <div className="col-lg-6">
+                <Skeleton className="w-100" style={{ height: "320px" }} />
+              </div>
+            </div>
+
+            <div className="mb-5">
+              <h2 className="fw-bold mb-4 text-center font-display">MSE Indexes</h2>
+              <div className="d-flex justify-content-center flex-wrap gap-3">
+                {INDEX_CODES.map((code) => (
+                  <div className="card rounded-0 index-compare-item table-bordered" key={code}>
+                    <Skeleton className="d-block mx-auto mb-2" style={{ width: "50%", height: "0.8rem" }} />
+                    <Skeleton className="d-block mx-auto" style={{ width: "70%", height: "1.75rem" }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="text-center ">
+              <div className="section-divider mx-auto mb-3 w-100"></div>
+              <h2 className="fw-bold mb-4 font-display ">Highest MSE Movers Today</h2>
+              <div className="section-divider mx-auto mb-5 w-100"></div>
+            </div>
+
+            <div className="row">
+              <div className="col-md-6 mb-4 mb-md-0">
+                <h2 className="fw-bold mb-5 text-center font-display">Top Gainers</h2>
+                <div className="d-flex flex-column gap-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div className="card rounded-0 mover-card h-100 text-center" key={i}>
+                      <Skeleton className="d-block mx-auto mb-1" style={{ width: "60%", height: "0.9rem" }} />
+                      <Skeleton className="d-block mx-auto" style={{ width: "35%", height: "1.15rem" }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="col-md-6">
+                <h2 className="fw-bold mb-5 text-center font-display">Top Losers</h2>
+                <div className="d-flex flex-column gap-3 ">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div className="card rounded-0 mover-card h-100 text-center" key={i}>
+                      <Skeleton className="d-block mx-auto mb-1" style={{ width: "60%", height: "0.9rem" }} />
+                      <Skeleton className="d-block mx-auto" style={{ width: "35%", height: "1.15rem" }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const latestByCode = Object.fromEntries(mseIndexes.map((idx) => [idx.index_code, idx]));
 

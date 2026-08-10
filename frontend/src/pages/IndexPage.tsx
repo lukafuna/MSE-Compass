@@ -1,8 +1,23 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getIndexSeries, type IndexSeriesPoint } from "../api/client";
+import Skeleton from "../components/Skeleton";
+import SkeletonTable from "../components/SkeletonTable";
 
 const HISTORY_DAY_OPTIONS = [3, 5, 10, 20];
+
+function StatCardSkeleton({ labelWidth = "50%" }: { labelWidth?: string }) {
+  return (
+    <div className="card text-center p-3 h-100">
+      <h6 className="text-muted d-flex justify-content-center">
+        <Skeleton style={{ width: labelWidth, height: "0.8rem" }} />
+      </h6>
+      <p className="mb-0 d-flex justify-content-center">
+        <Skeleton style={{ width: "40%", height: "1.4rem" }} />
+      </p>
+    </div>
+  );
+}
 
 function IndexPage() {
   const { indexCode } = useParams<{ indexCode: string }>();
@@ -23,7 +38,43 @@ function IndexPage() {
       .finally(() => setLoading(false));
   }, [indexCode]);
 
-  if (loading) return <p className="container-fluid px-4 mt-4">Loading...</p>;
+  if (loading) {
+    return (
+      <div className="w-100 flex-grow-1 d-flex flex-column">
+        <div className="bg-body-secondary py-5 w-100 flex-grow-1">
+          <div className="container-fluid px-4">
+            <h1 className="mb-1 fw-bold">
+              <Skeleton style={{ width: "8rem", height: "2rem" }} />
+            </h1>
+            <p className="mb-4">
+              <Skeleton style={{ width: "6rem", height: "0.8rem" }} />
+            </p>
+
+            <div className="row mb-4">
+              {["Value", "Change %", "Absolute Change"].map((label) => (
+                <div className="col-md-4 mb-3 mb-md-0" key={label}>
+                  <StatCardSkeleton labelWidth="40%" />
+                </div>
+              ))}
+            </div>
+
+            <div className="row mb-4">
+              {["Day Range", "Market Cap (MKD)", "P/E Ratio", "P/B Ratio"].map((label) => (
+                <div className="col-md-3 mb-3 mb-md-0" key={label}>
+                  <StatCardSkeleton labelWidth="60%" />
+                </div>
+              ))}
+            </div>
+
+            <h2 className="mb-3">Recent History</h2>
+            <div className="table-responsive">
+              <SkeletonTable columns={4} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (notFound || series.length === 0) {
     return (

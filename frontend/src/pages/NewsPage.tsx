@@ -138,7 +138,7 @@ function NewsPage() {
               <div className="row g-3">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div className="col-md-4" key={i}>
-                    <div className="card news-card-skeleton h-100 " />
+                    <div className="card news-card-skeleton skeleton h-100 " />
                   </div>
                 ))}
               </div>

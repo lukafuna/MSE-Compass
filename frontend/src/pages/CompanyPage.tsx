@@ -8,6 +8,8 @@ import {
 } from "../api/client";
 import PriceChart from "../components/PriceChart";
 import CompanyChat from "../components/CompanyChat";
+import Skeleton from "../components/Skeleton";
+import SkeletonTable from "../components/SkeletonTable";
 
 function trendBadgeClass(signal: string | null): string {
   switch (signal) {
@@ -95,7 +97,49 @@ function CompanyPage() {
       .finally(() => setLoading(false));
   }, [companyId]);
 
-  if (loading) return <p className="container-fluid px-4 mt-4">Loading...</p>;
+  if (loading) {
+    return (
+      <div className="w-100 flex-grow-1 d-flex flex-column">
+        <div className="bg-body-secondary py-5 w-100 flex-grow-1">
+          <div className="container-fluid px-4">
+            <h1 className="mb-5">
+              <Skeleton style={{ width: "16rem", height: "2.25rem" }} />
+            </h1>
+
+            <div className="row g-4 mb-4">
+              <div className="col-lg-6">
+                <div className="card rounded-0 p-4 h-100">
+                  <h6 className="text-muted text-uppercase small mb-3">
+                    <Skeleton style={{ width: "5rem", height: "0.7rem" }} />
+                  </h6>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="d-flex justify-content-between align-items-center py-2 border-bottom">
+                      <Skeleton style={{ width: "40%", height: "0.85rem" }} />
+                      <Skeleton style={{ width: "25%", height: "0.85rem" }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="col-lg-6">
+                <div className="card rounded-0 p-0 overflow-hidden">
+                  <Skeleton className="w-100" style={{ height: "320px", borderRadius: 0 }} />
+                </div>
+                <div className="mt-4">
+                  <Skeleton className="w-100" style={{ height: "180px" }} />
+                </div>
+              </div>
+            </div>
+
+            <h2 className="mb-3">Recent History</h2>
+            <div className="table-responsive">
+              <SkeletonTable columns={9} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (notFound || series.length === 0) {
     return (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getScreener, type ScreenerRow } from "../api/client";
+import SkeletonTable from "../components/SkeletonTable";
 
 function trendBadgeClass(signal: string | null): string {
   switch (signal) {
@@ -49,7 +50,26 @@ function ScreenerPage() {
       .finally(() => setLoading(false));
   }, []); // empty array = run once, when the page first loads
 
-  if (loading) return <p className="container mt-4">Loading...</p>;
+  if (loading) {
+    return (
+      <div className="w-100 flex-grow-1 d-flex flex-column">
+        <div className="bg-body-secondary py-4 w-100 flex-grow-1">
+          <div className="container">
+            <h2 className="mb-3">MSE Stocks</h2>
+            <input
+              type="text"
+              className="form-control mb-3"
+              placeholder="Search by company name..."
+              disabled
+            />
+            <div className="results-area">
+              <SkeletonTable columns={9} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   function toggleSort() {
     setSortState((s) => (s === "off" ? "desc" : s === "desc" ? "asc" : "off"));
