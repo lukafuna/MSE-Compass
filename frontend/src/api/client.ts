@@ -6,6 +6,25 @@ const api = axios.create({
   baseURL: API_BASE_URL,
 });
 
+// In-memory cache for read requests. The data only changes once a day (the
+// scrape job), so pages that need the same thing -- e.g. /companies on the
+// About, Company and Search pages, or revisiting a page -- reuse the first
+// response instead of going back to the API. Concurrent identical requests
+// share one in-flight promise; failures are dropped so they can be retried.
+const GET_CACHE_TTL_MS = 5 * 60 * 1000;
+const getCache = new Map<string, { expires: number; promise: Promise<unknown> }>();
+
+function cachedGet<T>(url: string, params?: Record<string, unknown>): Promise<T> {
+  const key = `${url}?${JSON.stringify(params ?? {})}`;
+  const hit = getCache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.promise as Promise<T>;
+
+  const promise = api.get<T>(url, { params }).then((r) => r.data);
+  getCache.set(key, { expires: Date.now() + GET_CACHE_TTL_MS, promise });
+  promise.catch(() => getCache.delete(key));
+  return promise;
+}
+
 export interface Company {
   id: number;
   name: string;
@@ -93,50 +112,37 @@ export interface IndexSeriesPoint {
 
 
 export async function getCompanies(): Promise<Company[]> {
-  const response = await api.get<Company[]>("/companies");
-  return response.data;
+  return cachedGet<Company[]>("/companies");
 }
 
 export async function getCompanySeries(
   companyId: number,
   since?: string
 ): Promise<CompanySeriesPoint[]> {
-  const response = await api.get<CompanySeriesPoint[]>(
-    `/companies/${companyId}/series`,
-    { params: since ? { since } : {} }
-  );
-  return response.data;
+  return cachedGet<CompanySeriesPoint[]>(`/companies/${companyId}/series`, since ? { since } : {});
 }
 
 export async function getScreener(): Promise<ScreenerRow[]> {
-  const response = await api.get<ScreenerRow[]>("/screener");
-  return response.data;
+  return cachedGet<ScreenerRow[]>("/screener");
 }
 
 export async function getBonds(): Promise<BondRow[]> {
-  const response = await api.get<BondRow[]>("/bonds");
-  return response.data;
+  return cachedGet<BondRow[]>("/bonds");
 }
 
 export async function getIndexes(): Promise<MseIndex[]> {
-  const response = await api.get<MseIndex[]>("/indexes");
-  return response.data;
+  return cachedGet<MseIndex[]>("/indexes");
 }
 
 export async function getIndexSeries(
   indexCode: string,
   since?: string
 ): Promise<IndexSeriesPoint[]> {
-  const response = await api.get<IndexSeriesPoint[]>(
-    `/indexes/${indexCode}/series`,
-    { params: since ? { since } : {} }
-  );
-  return response.data;
+  return cachedGet<IndexSeriesPoint[]>(`/indexes/${indexCode}/series`, since ? { since } : {});
 }
 
 export async function getNews(region: "mse" | "global", limit = 100): Promise<NewsArticle[]> {
-  const response = await api.get<NewsArticle[]>("/news", { params: { region, limit } });
-  return response.data;
+  return cachedGet<NewsArticle[]>("/news", { region, limit });
 }
 
 export async function sendContactMessage(payload: {

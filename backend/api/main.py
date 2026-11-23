@@ -1,53 +1,114 @@
+import inspect
 import json
 import logging
 import os
 import smtplib
+import threading
 import time
+from contextlib import asynccontextmanager
 from email.message import EmailMessage
 from functools import wraps
 
 import requests
 from fastapi import FastAPI, HTTPException
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import Response, StreamingResponse
 from datetime import date
 from pydantic import BaseModel
-from backend.database.db import get_connection
+from backend.database.db import get_connection, pooled_connection
 
 log = logging.getLogger(__name__)
 
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", 3600))
+# How long browsers may reuse a read response without asking again. Data
+# only changes when the daily scrape runs, so a few minutes is harmless and
+# makes back/forward navigation and revisits instant.
+BROWSER_CACHE_SECONDS = int(os.getenv("BROWSER_CACHE_SECONDS", 300))
 
 
 def ttl_cache(seconds: int = CACHE_TTL_SECONDS):
     """Tiny in-process cache for read endpoints backed by data that only
     changes once (or twice) a day via the scrape job. Keyed on the
-    endpoint's own arguments, so /companies/5/series and /companies/6/series
-    get separate entries. Not shared across processes/instances -- fine here
-    since the API runs as a single instance and staleness of up to `seconds`
-    after a scrape is acceptable."""
+    endpoint's own (normalized) arguments, so /companies/5/series and
+    /companies/6/series get separate entries. Not shared across
+    processes/instances -- fine here since the API runs as a single
+    instance and staleness of up to `seconds` after a scrape is acceptable.
+
+    Stores the already-serialized JSON body, so a hit skips both the DB and
+    FastAPI's per-request encoding, and adds a Cache-Control header so the
+    browser can reuse the response too. A per-key lock makes concurrent
+    misses for the same key (cold start, a page firing parallel requests)
+    run the query once instead of once per request."""
 
     def decorator(fn):
-        store: dict[tuple, tuple[float, object]] = {}
+        store: dict[tuple, tuple[float, bytes]] = {}
+        locks: dict[tuple, threading.Lock] = {}
+        locks_guard = threading.Lock()
+        sig = inspect.signature(fn)
+
+        def make_response(body: bytes) -> Response:
+            return Response(
+                body,
+                media_type="application/json",
+                headers={"Cache-Control": f"public, max-age={BROWSER_CACHE_SECONDS}"},
+            )
 
         @wraps(fn)
         def wrapper(*args, **kwargs):
-            key = (args, tuple(sorted(kwargs.items())))
-            now = time.monotonic()
+            bound = sig.bind(*args, **kwargs)
+            bound.apply_defaults()
+            key = tuple(bound.arguments.items())
+
             cached = store.get(key)
-            if cached and now < cached[0]:
-                return cached[1]
-            value = fn(*args, **kwargs)
-            store[key] = (now + seconds, value)
-            return value
+            if cached and time.monotonic() < cached[0]:
+                return make_response(cached[1])
+
+            with locks_guard:
+                lock = locks.setdefault(key, threading.Lock())
+            with lock:
+                cached = store.get(key)  # filled while we waited?
+                if cached and time.monotonic() < cached[0]:
+                    return make_response(cached[1])
+                body = json.dumps(
+                    jsonable_encoder(fn(*args, **kwargs)), separators=(",", ":")
+                ).encode()
+                store[key] = (time.monotonic() + seconds, body)
+                return make_response(body)
 
         return wrapper
 
     return decorator
 
+
+def _warm_cache() -> None:
+    """Prime the cache with what the homepage needs, so the first visitor
+    after a (re)start doesn't pay for the queries. Runs in the background;
+    requests arriving meanwhile wait on the per-key lock instead of
+    duplicating the work."""
+    for fn, args in [
+        (screener, ()),
+        (indexes, ()),
+        (index_series, ("MBI10",)),
+        (index_series, ("OMB",)),
+        (list_companies, ()),
+    ]:
+        try:
+            fn(*args)
+        except Exception:
+            log.exception("Cache warm-up failed for %s%s", fn.__name__, args)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    threading.Thread(target=_warm_cache, daemon=True).start()
+    yield
+
+
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 
-app = FastAPI(title="MSE Compass API")
+app = FastAPI(title="MSE Compass API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,6 +117,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# JSON payloads (price series, news) shrink ~5-8x compressed. Streaming chat
+# responses are text/plain and small chunks; GZip skips bodies < minimum_size.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
@@ -124,19 +193,15 @@ def send_contact_message(payload: ContactRequest):
 @app.get("/companies")
 @ttl_cache()
 def list_companies():
-    conn = get_connection()
-    try:
+    with pooled_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id, name, instrument_type FROM companies ORDER BY name")
             return [{"id": r[0], "name": r[1], "instrument_type": r[2]} for r in cur.fetchall()]
-    finally:
-        conn.close()
 
 @app.get("/companies/{company_id}/series")
 @ttl_cache()
 def company_series(company_id: int, since: date | None = None):
-    conn = get_connection()
-    try:
+    with pooled_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT o.trading_date, o.close_price, o.avg_price, o.daily_change_pct,
@@ -155,14 +220,11 @@ def company_series(company_id: int, since: date | None = None):
             if not rows:
                 raise HTTPException(404, "No data for this company")
             return [dict(zip(cols, r)) for r in rows]
-    finally:
-        conn.close()
 
 @app.get("/screener")
 @ttl_cache()
 def screener():
-    conn = get_connection()
-    try:
+    with pooled_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT DISTINCT ON (c.id)
@@ -178,8 +240,6 @@ def screener():
             """)
             cols = [d[0] for d in cur.description]
             return [dict(zip(cols, r)) for r in cur.fetchall()]
-    finally:
-        conn.close()
 
 
 @app.get("/bonds")
@@ -194,8 +254,7 @@ def bonds():
     standard % of face value bonds are quoted at). Bonds that have never
     been quoted are still listed, just with nulls, but sorted after ones
     that have data."""
-    conn = get_connection()
-    try:
+    with pooled_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT
@@ -215,8 +274,6 @@ def bonds():
             """)
             cols = [d[0] for d in cur.description]
             return [dict(zip(cols, r)) for r in cur.fetchall()]
-    finally:
-        conn.close()
 
 
 @app.get("/news")
@@ -224,8 +281,7 @@ def bonds():
 def news(region: str = "mse", limit: int = 30):
     if region not in ("mse", "global"):
         raise HTTPException(400, "region must be 'mse' or 'global'")
-    conn = get_connection()
-    try:
+    with pooled_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT id, headline, category, summary, source, url, image_url, published_at
@@ -236,15 +292,12 @@ def news(region: str = "mse", limit: int = 30):
             """, (region, limit))
             cols = [d[0] for d in cur.description]
             return [dict(zip(cols, r)) for r in cur.fetchall()]
-    finally:
-        conn.close()
 
 
 @app.get("/indexes")
 @ttl_cache()
 def indexes():
-    conn = get_connection()
-    try:
+    with pooled_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT DISTINCT ON (index_code)
@@ -256,15 +309,12 @@ def indexes():
             """)
             cols = [d[0] for d in cur.description]
             return [dict(zip(cols, r)) for r in cur.fetchall()]
-    finally:
-        conn.close()
 
 
 @app.get("/indexes/{index_code}/series")
 @ttl_cache()
 def index_series(index_code: str, since: date | None = None):
-    conn = get_connection()
-    try:
+    with pooled_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT trading_date, index_type, value, change_pct, absolute_change,
@@ -279,8 +329,6 @@ def index_series(index_code: str, since: date | None = None):
             if not rows:
                 raise HTTPException(404, "No data for this index")
             return [dict(zip(cols, r)) for r in rows]
-    finally:
-        conn.close()
 
 
 class ChatMessage(BaseModel):
@@ -294,8 +342,7 @@ class ChatRequest(BaseModel):
 
 
 def _fetch_chat_context(company_id: int) -> tuple[dict, list[dict]]:
-    conn = get_connection()
-    try:
+    with pooled_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id, name, instrument_type FROM companies WHERE id = %s", (company_id,))
             row = cur.fetchone()
@@ -319,14 +366,11 @@ def _fetch_chat_context(company_id: int) -> tuple[dict, list[dict]]:
             rows = [dict(zip(cols, r)) for r in cur.fetchall()]
             rows.reverse()  # oldest first, easier for the model to reason about trends
             return company, rows
-    finally:
-        conn.close()
 
 
 def _fetch_market_snapshot() -> list[dict]:
     """Latest trading day on record for every listing, for cross-company comparisons."""
-    conn = get_connection()
-    try:
+    with pooled_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT DISTINCT ON (o.company_id)
@@ -342,8 +386,6 @@ def _fetch_market_snapshot() -> list[dict]:
             """)
             cols = [d[0] for d in cur.description]
             return [dict(zip(cols, r)) for r in cur.fetchall()]
-    finally:
-        conn.close()
 
 
 def _rows_to_csv(rows: list[dict]) -> str:
@@ -445,4 +487,10 @@ def company_chat(company_id: int, payload: ChatRequest):
     contents = [{"role": m.role, "parts": [{"text": m.content}]} for m in payload.history]
     contents.append({"role": "user", "parts": [{"text": payload.message}]})
 
-    return StreamingResponse(_stream_gemini_reply(system_prompt, contents), media_type="text/plain")
+    # Content-Encoding: identity opts out of GZipMiddleware, which buffers
+    # streamed chunks and would make the reply arrive all at once.
+    return StreamingResponse(
+        _stream_gemini_reply(system_prompt, contents),
+        media_type="text/plain",
+        headers={"Content-Encoding": "identity", "Cache-Control": "no-store"},
+    )
