@@ -447,7 +447,10 @@ def _stream_gemini_reply(system_prompt: str, contents: list[dict]):
     try:
         with requests.post(
             GEMINI_STREAM_URL,
-            params={"key": GEMINI_API_KEY, "alt": "sse"},
+            # Key goes in a header, not the query string: request URLs end up
+            # in exception messages/tracebacks (and so in logs).
+            params={"alt": "sse"},
+            headers={"x-goog-api-key": GEMINI_API_KEY},
             json={
                 "systemInstruction": {"parts": [{"text": system_prompt}]},
                 "contents": contents,

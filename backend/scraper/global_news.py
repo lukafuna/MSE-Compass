@@ -24,7 +24,10 @@ def fetch_global_news(category: str = "general") -> list[dict]:
 
     resp = requests.get(
         FINNHUB_NEWS_URL,
-        params={"category": category, "token": api_key},
+        params={"category": category},
+        # Token in a header, not the URL, so it never shows up in
+        # raise_for_status() errors / logs (or CI output).
+        headers={"X-Finnhub-Token": api_key},
         timeout=15,
     )
     resp.raise_for_status()
