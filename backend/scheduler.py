@@ -135,7 +135,9 @@ def bonds_job() -> None:
         log.exception("Bond OHLCV scrape failed")
 
     try:
-        _scrape_and_save_indexes("bond", months=2)
+        # MSE's /api/index/{code}/{months} only accepts 1, 3, 6 or 12 --
+        # anything else (e.g. 2) is a 500. 3 covers the monthly cadence.
+        _scrape_and_save_indexes("bond", months=3)
     except Exception:
         log.exception("Bond index scrape failed")
 
